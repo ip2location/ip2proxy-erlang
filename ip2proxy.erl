@@ -265,7 +265,7 @@ searchtree(S, Ipnum, Dbtype, Low, High, BaseAddr, Colsize, Iptype, Mode) ->
 			city = X,
 			isp = X,
 			proxy_type = X,
-			is_proxy = X
+			is_proxy = -1
 			}
 	end.
 
@@ -374,7 +374,7 @@ query(Ip, Mode) ->
 					city = X,
 					isp = X,
 					proxy_type = X,
-					is_proxy = X
+					is_proxy = -1
 					}
 				end;
 			_ ->
@@ -385,7 +385,7 @@ query(Ip, Mode) ->
 				city = Y,
 				isp = Y,
 				proxy_type = Y,
-				is_proxy = Y
+				is_proxy = -1
 				}
 			end
 		end
