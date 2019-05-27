@@ -1,5 +1,5 @@
 -module(ip2proxy).
--export([getpackageversion/0, getmoduleversion/0, getdatabaseversion/0, open/1, getall/1, getproxytype/1, getcountryshort/1, getcountrylong/1, getregion/1, getcity/1, getisp/1, isproxy/1, close/0]).
+-export([getpackageversion/0, getmoduleversion/0, getdatabaseversion/0, open/1, getall/1, getproxytype/1, getcountryshort/1, getcountrylong/1, getregion/1, getcity/1, getisp/1, getdomain/1, getusagetype/1, getasn/1, getas/1, getlastseen/1, isproxy/1, close/0]).
 -record(ip2proxyrecord, {
 	country_short = "-",
 	country_long = "-",
@@ -7,6 +7,11 @@
 	city = "-",
 	isp = "-",
 	proxy_type = "-",
+	domain = "-",
+	usage_type = "-",
+	asn = "-",
+	as = "-",
+	last_seen = "-",
 	is_proxy = 0
 }).
 
@@ -26,7 +31,7 @@ getpackageversion() ->
 	end.
 
 getmoduleversion() ->
-	"1.0.0".
+	"2.0.0".
 
 getdatabaseversion() ->
 	case ets:info(mymeta) of
@@ -152,11 +157,16 @@ readcolstring(S, Dbtype, Rowoffset, Col) ->
 	
 
 readrecord(S, Dbtype, Rowoffset, Mode) ->
-	Country_position = [0, 2, 3, 3, 3],
-	Region_position = [0, 0, 0, 4, 4],
-	City_position = [0, 0, 0, 5, 5],
-	Isp_position = [0, 0, 0, 0, 6],
-	Proxytype_position = [0, 0, 2, 2, 2],
+	Country_position = [0, 2, 3, 3, 3, 3, 3, 3, 3],
+	Region_position = [0, 0, 0, 4, 4, 4, 4, 4, 4],
+	City_position = [0, 0, 0, 5, 5, 5, 5, 5, 5],
+	Isp_position = [0, 0, 0, 0, 6, 6, 6, 6, 6],
+	Proxytype_position = [0, 0, 2, 2, 2, 2, 2, 2, 2],
+	Domain_position = [0, 0, 0, 0, 0, 7, 7, 7, 7],
+	Usagetype_position = [0, 0, 0, 0, 0, 0, 8, 8, 8],
+	Asn_position = [0, 0, 0, 0, 0, 0, 0, 9, 9],
+	As_position = [0, 0, 0, 0, 0, 0, 0, 10, 10],
+	Lastseen_position = [0, 0, 0, 0, 0, 0, 0, 0, 11],
 	
 	Countryshort_field = 1,
 	Countrylong_field = 2,
@@ -165,6 +175,11 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 	Isp_field = 16,
 	Proxytype_field = 32,
 	Isproxy_field = 64,
+	Domain_field = 128,
+	Usagetype_field = 256,
+	Asn_field = 512,
+	As_field = 1024,
+	Lastseen_field = 2048,
 	
 	if
 		(Mode band Proxytype_field /= 0) or (Mode band Isproxy_field /= 0) ->
@@ -202,11 +217,46 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 	end,
 	
 	if
+		Mode band Domain_field /= 0 ->
+			Domain = readcolstring(S, Dbtype, Rowoffset, Domain_position);
+		true ->
+			Domain = ""
+	end,
+	
+	if
+		Mode band Usagetype_field /= 0 ->
+			Usage_type = readcolstring(S, Dbtype, Rowoffset, Usagetype_position);
+		true ->
+			Usage_type = ""
+	end,
+	
+	if
+		Mode band Asn_field /= 0 ->
+			Asn = readcolstring(S, Dbtype, Rowoffset, Asn_position);
+		true ->
+			Asn = ""
+	end,
+	
+	if
+		Mode band As_field /= 0 ->
+			As = readcolstring(S, Dbtype, Rowoffset, As_position);
+		true ->
+			As = ""
+	end,
+	
+	if
+		Mode band Lastseen_field /= 0 ->
+			Last_seen = readcolstring(S, Dbtype, Rowoffset, Lastseen_position);
+		true ->
+			Last_seen = ""
+	end,
+	
+	if
 		(Country_short == "-") or (Proxy_type == "-") ->
 			Is_proxy = 0;
 		true ->
 			if
-				Proxy_type == "DCH" ->
+				(Proxy_type == "DCH") or (Proxy_type == "SES") ->
 					Is_proxy = 2;
 				true ->
 					Is_proxy = 1
@@ -220,6 +270,11 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 	city = City,
 	isp = Isp,
 	proxy_type = Proxy_type,
+	domain = Domain,
+	usage_type = Usage_type,
+	asn = Asn,
+	as = As,
+	last_seen = Last_seen,
 	is_proxy = Is_proxy
 	}.
 
@@ -265,6 +320,11 @@ searchtree(S, Ipnum, Dbtype, Low, High, BaseAddr, Colsize, Iptype, Mode) ->
 			city = X,
 			isp = X,
 			proxy_type = X,
+			domain = X,
+			usage_type = X,
+			asn = X,
+			as = X,
+			last_seen = X,
 			is_proxy = -1
 			}
 	end.
@@ -292,7 +352,7 @@ search6(S, Ipnum, Dbtype, Low, High, Baseaddr, Indexbaseaddr, Colsize, Mode) ->
 	end.
 
 getall(Ip) ->
-	query(Ip, 127).
+	query(Ip, 4095).
 
 getcountryshort(Ip) ->
 	Result = query(Ip, 1),
@@ -317,6 +377,26 @@ getisp(Ip) ->
 getproxytype(Ip) ->
 	Result = query(Ip, 32),
 	Result#ip2proxyrecord.proxy_type.
+
+getdomain(Ip) ->
+	Result = query(Ip, 128),
+	Result#ip2proxyrecord.domain.
+
+getusagetype(Ip) ->
+	Result = query(Ip, 256),
+	Result#ip2proxyrecord.usage_type.
+
+getasn(Ip) ->
+	Result = query(Ip, 512),
+	Result#ip2proxyrecord.asn.
+
+getas(Ip) ->
+	Result = query(Ip, 1024),
+	Result#ip2proxyrecord.as.
+
+getlastseen(Ip) ->
+	Result = query(Ip, 2048),
+	Result#ip2proxyrecord.last_seen.
 
 isproxy(Ip) ->
 	Result = query(Ip, 64),
@@ -374,6 +454,11 @@ query(Ip, Mode) ->
 					city = X,
 					isp = X,
 					proxy_type = X,
+					domain = X,
+					usage_type = X,
+					asn = X,
+					as = X,
+					last_seen = X,
 					is_proxy = -1
 					}
 				end;
@@ -385,6 +470,11 @@ query(Ip, Mode) ->
 				city = Y,
 				isp = Y,
 				proxy_type = Y,
+				domain = Y,
+				usage_type = Y,
+				asn = Y,
+				as = Y,
+				last_seen = Y,
 				is_proxy = -1
 				}
 			end

@@ -5,20 +5,25 @@ printme(V) ->
 	case V of
 		{} ->
 			io:format("No results.~n", []);
-		{ip2proxyrecord, Country_short, Country_long, Region, City, Isp, Proxy_type, Is_proxy} ->
+		{ip2proxyrecord, Country_short, Country_long, Region, City, Isp, Proxy_type, Domain, Usage_type, Asn, As, Last_seen, Is_proxy} ->
 			io:format("Country_short: ~p~n", [Country_short]),
 			io:format("Country_long: ~p~n", [Country_long]),
 			io:format("Region: ~p~n", [Region]),
 			io:format("City: ~p~n", [City]),
 			io:format("Isp: ~p~n", [Isp]),
 			io:format("Proxy_type: ~p~n", [Proxy_type]),
+			io:format("Domain: ~p~n", [Domain]),
+			io:format("Usage_type: ~p~n", [Usage_type]),
+			io:format("Asn: ~p~n", [Asn]),
+			io:format("As: ~p~n", [As]),
+			io:format("Last_seen: ~p~n", [Last_seen]),
 			io:format("Is_proxy: ~p~n", [Is_proxy])
 	end,
 	io:format("===================================================================~n", []).
 
 testme() ->
-	X = "199.83.103.79",
-	case ip2proxy:open("IP2PROXY-IP-PROXYTYPE-COUNTRY-REGION-CITY-ISP.BIN") of
+	X = "37.252.228.50",
+	case ip2proxy:open("./IP2Proxy/bin/IP2PROXY-IP-PROXYTYPE-COUNTRY-REGION-CITY-ISP-DOMAIN-USAGETYPE-ASN-LASTSEEN.BIN") of
 	0 ->
 		io:format("getpackageversion: ~p~n", [ip2proxy:getpackageversion()]),
 		io:format("getmoduleversion: ~p~n", [ip2proxy:getmoduleversion()]),
@@ -32,6 +37,11 @@ testme() ->
 		io:format("City: ~p~n", [ip2proxy:getcity(X)]),
 		io:format("Isp: ~p~n", [ip2proxy:getisp(X)]),
 		io:format("Proxy_type: ~p~n", [ip2proxy:getproxytype(X)]),
+		io:format("Domain: ~p~n", [ip2proxy:getdomain(X)]),
+		io:format("Usage_type: ~p~n", [ip2proxy:getusagetype(X)]),
+		io:format("Asn: ~p~n", [ip2proxy:getasn(X)]),
+		io:format("AS: ~p~n", [ip2proxy:getas(X)]),
+		io:format("Last_seen: ~p~n", [ip2proxy:getlastseen(X)]),
 		io:format("Is_proxy: ~p~n", [ip2proxy:isproxy(X)]);
 	_ ->
 		io:format("Error reading BIN file~n", [])
