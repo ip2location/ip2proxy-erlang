@@ -31,7 +31,7 @@ getpackageversion() ->
 	end.
 
 getmoduleversion() ->
-	"2.0.0".
+	"2.1.0".
 
 getdatabaseversion() ->
 	case ets:info(mymeta) of
@@ -405,8 +405,13 @@ isproxy(Ip) ->
 query(Ip, Mode) ->
 	X = "INVALID IP ADDRESS",
 	Y = "INVALID BIN FILE",
-	From = 281470681743360,
-	To = 281474976710655,
+	Fromv4mapped = 281470681743360,
+	Tov4mapped = 281474976710655,
+	From6to4 = 42545680458834377588178886921629466624,
+	To6to4 = 42550872755692912415807417417958686719,
+	Fromteredo = 42540488161975842760550356425300246528,
+	Toteredo = 42540488241204005274814694018844196863,
+	Last32bits = 4294967295,
 	
 	case ets:info(mymeta) of
 	undefined ->
@@ -441,8 +446,12 @@ query(Ip, Mode) ->
 				{ok, {X1, X2, X3, X4, X5, X6, X7, X8}} ->
 					Ipnum = (X1 bsl 112) + (X2 bsl 96) + (X3 bsl 80) + (X4 bsl 64) + (X5 bsl 48) + (X6 bsl 32) + (X7 bsl 16) + X8,
 					if
-						Ipnum >= From andalso Ipnum =< To ->
-							search4(S, Ipnum - From, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
+						Ipnum >= Fromv4mapped andalso Ipnum =< Tov4mapped ->
+							search4(S, Ipnum - Fromv4mapped, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
+						Ipnum >= From6to4 andalso Ipnum =< To6to4 ->
+							search4(S, (Ipnum bsr 80) band Last32bits, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
+						Ipnum >= Fromteredo andalso Ipnum =< Toteredo ->
+							search4(S, ((bnot Ipnum) band Last32bits), Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
 						true ->
 							search6(S, Ipnum, Databasetype, 0, Ipv6databasecount, Ipv6databaseaddr, Ipv6indexbaseaddr, Ipv6columnsize, Mode)
 					end;
