@@ -31,7 +31,7 @@ getpackageversion() ->
 	end.
 
 getmoduleversion() ->
-	"2.1.0".
+	"2.1.1".
 
 getdatabaseversion() ->
 	case ets:info(mymeta) of
@@ -439,7 +439,7 @@ query(Ip, Mode) ->
 				[{_, Ipv4columnsize}] = ets:lookup(mymeta, ipv4columnsize),
 				[{_, Ipv6columnsize}] = ets:lookup(mymeta, ipv6columnsize),
 				
-				case inet:parse_address(Ip) of
+				Result = case inet:parse_address(Ip) of
 				{ok, {X1, X2, X3, X4}} ->
 					Ipnum = (X1 bsl 24) + (X2 bsl 16) + (X3 bsl 8) + (X4),
 					search4(S, Ipnum, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
@@ -470,7 +470,9 @@ query(Ip, Mode) ->
 					last_seen = X,
 					is_proxy = -1
 					}
-				end;
+				end,
+				file:close(S),
+				Result;
 			_ ->
 				#ip2proxyrecord{
 				country_short = Y,
