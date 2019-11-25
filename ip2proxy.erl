@@ -14,6 +14,7 @@
 	last_seen = "-",
 	is_proxy = 0
 }).
+-define(IF(Cond), (case (Cond) of true -> (0); false -> (1) end)).
 
 getpackageversion() ->
 	case ets:info(mymeta) of
@@ -31,7 +32,7 @@ getpackageversion() ->
 	end.
 
 getmoduleversion() ->
-	"2.1.1".
+	"2.2.0".
 
 getdatabaseversion() ->
 	case ets:info(mymeta) of
@@ -58,11 +59,18 @@ readuint(S, StartPos, Len) ->
 		binary:decode_unsigned(Data, little)
 	end.
 
+readuintrow(R, StartPos, Len) ->
+	Data = binary:part(R, StartPos, Len),
+	binary:decode_unsigned(Data, little).
+
 readuint8(S, StartPos) ->
 	readuint(S, StartPos, 1).
 
 readuint32(S, StartPos) ->
 	readuint(S, StartPos, 4).
+
+readuint32row(R, StartPos) ->
+	readuintrow(R, StartPos, 4).
 
 readuint128(S, StartPos) ->
 	readuint(S, StartPos, 16).
@@ -133,28 +141,49 @@ open(InputFile) ->
 		-1 % negative one means error
 	end.
 
-readcolcountry(S, Dbtype, Rowoffset, Col) ->
+% readcolcountry(S, Dbtype, Rowoffset, Col) ->
+	% X = "NOT SUPPORTED",
+	% case lists:nth(Dbtype, Col) of
+	% 0 ->
+		% {X, X};
+	% Colpos ->
+		% Coloffset = (Colpos - 1) bsl 2,
+		% X0 = readuint32(S, Rowoffset + Coloffset),
+		% X1 = readstr(S, X0),
+		% X2 = readstr(S, X0 + 3),
+		% {X1, X2}
+	% end.
+
+readcolcountryrow(S, R, Dbtype, Col) ->
 	X = "NOT SUPPORTED",
 	case lists:nth(Dbtype, Col) of
 	0 ->
 		{X, X};
 	Colpos ->
-		Coloffset = (Colpos - 1) bsl 2,
-		X0 = readuint32(S, Rowoffset + Coloffset),
+		Coloffset = (Colpos - 2) bsl 2,
+		X0 = readuint32row(R, Coloffset),
 		X1 = readstr(S, X0),
 		X2 = readstr(S, X0 + 3),
 		{X1, X2}
 	end.
 
-readcolstring(S, Dbtype, Rowoffset, Col) ->
+% readcolstring(S, Dbtype, Rowoffset, Col) ->
+	% case lists:nth(Dbtype, Col) of
+	% 0 ->
+		% "NOT SUPPORTED";
+	% Colpos ->
+		% Coloffset = (Colpos - 1) bsl 2,
+		% readstr(S, readuint32(S, Rowoffset + Coloffset))
+	% end.
+
+readcolstringrow(S, R, Dbtype, Col) ->
 	case lists:nth(Dbtype, Col) of
 	0 ->
 		"NOT SUPPORTED";
 	Colpos ->
-		Coloffset = (Colpos - 1) bsl 2,
-		readstr(S, readuint32(S, Rowoffset + Coloffset))
+		Coloffset = (Colpos - 2) bsl 2,
+		readstr(S, readuint32row(R, Coloffset))
 	end.
-	
 
 readrecord(S, Dbtype, Rowoffset, Mode) ->
 	Country_position = [0, 2, 3, 3, 3, 3, 3, 3, 3],
@@ -181,102 +210,122 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 	As_field = 1024,
 	Lastseen_field = 2048,
 	
-	if
-		(Mode band Proxytype_field /= 0) or (Mode band Isproxy_field /= 0) ->
-			Proxy_type = readcolstring(S, Dbtype, Rowoffset, Proxytype_position);
-		true ->
-			Proxy_type = ""
-	end,
+	Cols = ?IF(lists:nth(Dbtype, Country_position) == 0) + ?IF(lists:nth(Dbtype, Region_position) == 0) + ?IF(lists:nth(Dbtype, City_position) == 0) + ?IF(lists:nth(Dbtype, Isp_position) == 0) + ?IF(lists:nth(Dbtype, Proxytype_position) == 0) + ?IF(lists:nth(Dbtype, Domain_position) == 0) + ?IF(lists:nth(Dbtype, Usagetype_position) == 0) + ?IF(lists:nth(Dbtype, Asn_position) == 0) + ?IF(lists:nth(Dbtype, As_position) == 0) + ?IF(lists:nth(Dbtype, Lastseen_position) == 0),
+	Rowlength = Cols bsl 2,
 	
-	if
-		(Mode band Countryshort_field /= 0) or (Mode band Countrylong_field /= 0) or (Mode band Isproxy_field /= 0) ->
-			{Country_short, Country_long} = readcolcountry(S, Dbtype, Rowoffset, Country_position);
-		true ->
-			{Country_short, Country_long} = {"", ""}
-	end,
-	
-	if
-		Mode band Region_field /= 0 ->
-			Region = readcolstring(S, Dbtype, Rowoffset, Region_position);
-		true ->
-			Region = ""
-	end,
-	
-	if
-		Mode band City_field /= 0 ->
-			City = readcolstring(S, Dbtype, Rowoffset, City_position);
-		true ->
-			City = ""
-	end,
-	
-	if
-		Mode band Isp_field /= 0 ->
-			Isp = readcolstring(S, Dbtype, Rowoffset, Isp_position);
-		true ->
-			Isp = ""
-	end,
-	
-	if
-		Mode band Domain_field /= 0 ->
-			Domain = readcolstring(S, Dbtype, Rowoffset, Domain_position);
-		true ->
-			Domain = ""
-	end,
-	
-	if
-		Mode band Usagetype_field /= 0 ->
-			Usage_type = readcolstring(S, Dbtype, Rowoffset, Usagetype_position);
-		true ->
-			Usage_type = ""
-	end,
-	
-	if
-		Mode band Asn_field /= 0 ->
-			Asn = readcolstring(S, Dbtype, Rowoffset, Asn_position);
-		true ->
-			Asn = ""
-	end,
-	
-	if
-		Mode band As_field /= 0 ->
-			As = readcolstring(S, Dbtype, Rowoffset, As_position);
-		true ->
-			As = ""
-	end,
-	
-	if
-		Mode band Lastseen_field /= 0 ->
-			Last_seen = readcolstring(S, Dbtype, Rowoffset, Lastseen_position);
-		true ->
-			Last_seen = ""
-	end,
-	
-	if
-		(Country_short == "-") or (Proxy_type == "-") ->
-			Is_proxy = 0;
-		true ->
+	case file:pread(S, Rowoffset - 1, Rowlength) of
+		eof ->
+			#ip2proxyrecord{};
+		{ok, Data} ->
+			R = Data,
+			
 			if
-				(Proxy_type == "DCH") or (Proxy_type == "SES") ->
-					Is_proxy = 2;
+				(Mode band Proxytype_field /= 0) or (Mode band Isproxy_field /= 0) ->
+					% Proxy_type = readcolstring(S, Dbtype, Rowoffset, Proxytype_position);
+					Proxy_type = readcolstringrow(S, R, Dbtype, Proxytype_position);
 				true ->
-					Is_proxy = 1
-			end
-	end,
-	
-	#ip2proxyrecord{
-	country_short = Country_short,
-	country_long = Country_long,
-	region = Region,
-	city = City,
-	isp = Isp,
-	proxy_type = Proxy_type,
-	domain = Domain,
-	usage_type = Usage_type,
-	asn = Asn,
-	as = As,
-	last_seen = Last_seen,
-	is_proxy = Is_proxy
-	}.
+					Proxy_type = ""
+			end,
+			
+			if
+				(Mode band Countryshort_field /= 0) or (Mode band Countrylong_field /= 0) or (Mode band Isproxy_field /= 0) ->
+					% {Country_short, Country_long} = readcolcountry(S, Dbtype, Rowoffset, Country_position);
+					{Country_short, Country_long} = readcolcountryrow(S, R, Dbtype, Country_position);
+				true ->
+					{Country_short, Country_long} = {"", ""}
+			end,
+			
+			if
+				Mode band Region_field /= 0 ->
+					% Region = readcolstring(S, Dbtype, Rowoffset, Region_position);
+					Region = readcolstringrow(S, R, Dbtype, Region_position);
+				true ->
+					Region = ""
+			end,
+			
+			if
+				Mode band City_field /= 0 ->
+					% City = readcolstring(S, Dbtype, Rowoffset, City_position);
+					City = readcolstringrow(S, R, Dbtype, City_position);
+				true ->
+					City = ""
+			end,
+			
+			if
+				Mode band Isp_field /= 0 ->
+					% Isp = readcolstring(S, Dbtype, Rowoffset, Isp_position);
+					Isp = readcolstringrow(S, R, Dbtype, Isp_position);
+				true ->
+					Isp = ""
+			end,
+			
+			if
+				Mode band Domain_field /= 0 ->
+					% Domain = readcolstring(S, Dbtype, Rowoffset, Domain_position);
+					Domain = readcolstringrow(S, R, Dbtype, Domain_position);
+				true ->
+					Domain = ""
+			end,
+			
+			if
+				Mode band Usagetype_field /= 0 ->
+					% Usage_type = readcolstring(S, Dbtype, Rowoffset, Usagetype_position);
+					Usage_type = readcolstringrow(S, R, Dbtype, Usagetype_position);
+				true ->
+					Usage_type = ""
+			end,
+			
+			if
+				Mode band Asn_field /= 0 ->
+					% Asn = readcolstring(S, Dbtype, Rowoffset, Asn_position);
+					Asn = readcolstringrow(S, R, Dbtype, Asn_position);
+				true ->
+					Asn = ""
+			end,
+			
+			if
+				Mode band As_field /= 0 ->
+					% As = readcolstring(S, Dbtype, Rowoffset, As_position);
+					As = readcolstringrow(S, R, Dbtype, As_position);
+				true ->
+					As = ""
+			end,
+			
+			if
+				Mode band Lastseen_field /= 0 ->
+					% Last_seen = readcolstring(S, Dbtype, Rowoffset, Lastseen_position);
+					Last_seen = readcolstringrow(S, R, Dbtype, Lastseen_position);
+				true ->
+					Last_seen = ""
+			end,
+			
+			if
+				(Country_short == "-") or (Proxy_type == "-") ->
+					Is_proxy = 0;
+				true ->
+					if
+						(Proxy_type == "DCH") or (Proxy_type == "SES") ->
+							Is_proxy = 2;
+						true ->
+							Is_proxy = 1
+					end
+			end,
+			
+			#ip2proxyrecord{
+			country_short = Country_short,
+			country_long = Country_long,
+			region = Region,
+			city = City,
+			isp = Isp,
+			proxy_type = Proxy_type,
+			domain = Domain,
+			usage_type = Usage_type,
+			asn = Asn,
+			as = As,
+			last_seen = Last_seen,
+			is_proxy = Is_proxy
+			}
+	end.
 
 searchtree(S, Ipnum, Dbtype, Low, High, BaseAddr, Colsize, Iptype, Mode) ->
 	X = "INVALID IP ADDRESS",
@@ -300,9 +349,11 @@ searchtree(S, Ipnum, Dbtype, Low, High, BaseAddr, Colsize, Iptype, Mode) ->
 				Ipnum >= Ipfrom andalso Ipnum < Ipto ->
 					if
 						Iptype == ipv4 ->
-							readrecord(S, Dbtype + 1, Rowoffset, Mode);
+							% readrecord(S, Dbtype + 1, Rowoffset, Mode);
+							readrecord(S, Dbtype + 1, Rowoffset + 4, Mode);
 						true ->
-							readrecord(S, Dbtype + 1, Rowoffset + 12, Mode)
+							% readrecord(S, Dbtype + 1, Rowoffset + 12, Mode)
+							readrecord(S, Dbtype + 1, Rowoffset + 16, Mode)
 					end;
 				true ->
 					if
