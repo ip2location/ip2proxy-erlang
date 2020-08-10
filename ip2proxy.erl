@@ -1,5 +1,5 @@
 -module(ip2proxy).
--export([getpackageversion/0, getmoduleversion/0, getdatabaseversion/0, open/1, getall/1, getproxytype/1, getcountryshort/1, getcountrylong/1, getregion/1, getcity/1, getisp/1, getdomain/1, getusagetype/1, getasn/1, getas/1, getlastseen/1, isproxy/1, close/0]).
+-export([getpackageversion/0, getmoduleversion/0, getdatabaseversion/0, open/1, getall/1, getproxytype/1, getcountryshort/1, getcountrylong/1, getregion/1, getcity/1, getisp/1, getdomain/1, getusagetype/1, getasn/1, getas/1, getlastseen/1, getthreat/1, isproxy/1, close/0]).
 -record(ip2proxyrecord, {
 	country_short = "-",
 	country_long = "-",
@@ -12,6 +12,7 @@
 	asn = "-",
 	as = "-",
 	last_seen = "-",
+	threat = "-",
 	is_proxy = 0
 }).
 -define(IF(Cond), (case (Cond) of true -> (0); false -> (1) end)).
@@ -32,7 +33,7 @@ getpackageversion() ->
 	end.
 
 getmoduleversion() ->
-	"2.2.0".
+	"3.0.0".
 
 getdatabaseversion() ->
 	case ets:info(mymeta) of
@@ -186,16 +187,17 @@ readcolstringrow(S, R, Dbtype, Col) ->
 	end.
 
 readrecord(S, Dbtype, Rowoffset, Mode) ->
-	Country_position = [0, 2, 3, 3, 3, 3, 3, 3, 3],
-	Region_position = [0, 0, 0, 4, 4, 4, 4, 4, 4],
-	City_position = [0, 0, 0, 5, 5, 5, 5, 5, 5],
-	Isp_position = [0, 0, 0, 0, 6, 6, 6, 6, 6],
-	Proxytype_position = [0, 0, 2, 2, 2, 2, 2, 2, 2],
-	Domain_position = [0, 0, 0, 0, 0, 7, 7, 7, 7],
-	Usagetype_position = [0, 0, 0, 0, 0, 0, 8, 8, 8],
-	Asn_position = [0, 0, 0, 0, 0, 0, 0, 9, 9],
-	As_position = [0, 0, 0, 0, 0, 0, 0, 10, 10],
-	Lastseen_position = [0, 0, 0, 0, 0, 0, 0, 0, 11],
+	Country_position = [0, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+	Region_position = [0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4],
+	City_position = [0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5],
+	Isp_position = [0, 0, 0, 0, 6, 6, 6, 6, 6, 6, 6],
+	Proxytype_position = [0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+	Domain_position = [0, 0, 0, 0, 0, 7, 7, 7, 7, 7, 7],
+	Usagetype_position = [0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8],
+	Asn_position = [0, 0, 0, 0, 0, 0, 0, 9, 9, 9, 9],
+	As_position = [0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10],
+	Lastseen_position = [0, 0, 0, 0, 0, 0, 0, 0, 11, 11, 11],
+	Threat_position = [0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 12],
 	
 	Countryshort_field = 1,
 	Countrylong_field = 2,
@@ -209,8 +211,9 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 	Asn_field = 512,
 	As_field = 1024,
 	Lastseen_field = 2048,
+	Threat_field = 4096,
 	
-	Cols = ?IF(lists:nth(Dbtype, Country_position) == 0) + ?IF(lists:nth(Dbtype, Region_position) == 0) + ?IF(lists:nth(Dbtype, City_position) == 0) + ?IF(lists:nth(Dbtype, Isp_position) == 0) + ?IF(lists:nth(Dbtype, Proxytype_position) == 0) + ?IF(lists:nth(Dbtype, Domain_position) == 0) + ?IF(lists:nth(Dbtype, Usagetype_position) == 0) + ?IF(lists:nth(Dbtype, Asn_position) == 0) + ?IF(lists:nth(Dbtype, As_position) == 0) + ?IF(lists:nth(Dbtype, Lastseen_position) == 0),
+	Cols = ?IF(lists:nth(Dbtype, Country_position) == 0) + ?IF(lists:nth(Dbtype, Region_position) == 0) + ?IF(lists:nth(Dbtype, City_position) == 0) + ?IF(lists:nth(Dbtype, Isp_position) == 0) + ?IF(lists:nth(Dbtype, Proxytype_position) == 0) + ?IF(lists:nth(Dbtype, Domain_position) == 0) + ?IF(lists:nth(Dbtype, Usagetype_position) == 0) + ?IF(lists:nth(Dbtype, Asn_position) == 0) + ?IF(lists:nth(Dbtype, As_position) == 0) + ?IF(lists:nth(Dbtype, Lastseen_position) == 0) + ?IF(lists:nth(Dbtype, Threat_position) == 0),
 	Rowlength = Cols bsl 2,
 	
 	case file:pread(S, Rowoffset - 1, Rowlength) of
@@ -300,6 +303,14 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			end,
 			
 			if
+				Mode band Threat_field /= 0 ->
+					% Threat = readcolstring(S, Dbtype, Rowoffset, Threat_position);
+					Threat = readcolstringrow(S, R, Dbtype, Threat_position);
+				true ->
+					Threat = ""
+			end,
+			
+			if
 				(Country_short == "-") or (Proxy_type == "-") ->
 					Is_proxy = 0;
 				true ->
@@ -323,6 +334,7 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			asn = Asn,
 			as = As,
 			last_seen = Last_seen,
+			threat = Threat,
 			is_proxy = Is_proxy
 			}
 	end.
@@ -376,6 +388,7 @@ searchtree(S, Ipnum, Dbtype, Low, High, BaseAddr, Colsize, Iptype, Mode) ->
 			asn = X,
 			as = X,
 			last_seen = X,
+			threat = X,
 			is_proxy = -1
 			}
 	end.
@@ -403,7 +416,7 @@ search6(S, Ipnum, Dbtype, Low, High, Baseaddr, Indexbaseaddr, Colsize, Mode) ->
 	end.
 
 getall(Ip) ->
-	query(Ip, 4095).
+	query(Ip, 8191).
 
 getcountryshort(Ip) ->
 	Result = query(Ip, 1),
@@ -448,6 +461,10 @@ getas(Ip) ->
 getlastseen(Ip) ->
 	Result = query(Ip, 2048),
 	Result#ip2proxyrecord.last_seen.
+
+getthreat(Ip) ->
+	Result = query(Ip, 4096),
+	Result#ip2proxyrecord.threat.
 
 isproxy(Ip) ->
 	Result = query(Ip, 64),
@@ -519,6 +536,7 @@ query(Ip, Mode) ->
 					asn = X,
 					as = X,
 					last_seen = X,
+					threat = X,
 					is_proxy = -1
 					}
 				end,
@@ -537,6 +555,7 @@ query(Ip, Mode) ->
 				asn = Y,
 				as = Y,
 				last_seen = Y,
+				threat = Y,
 				is_proxy = -1
 				}
 			end
