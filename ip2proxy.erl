@@ -1,5 +1,5 @@
 -module(ip2proxy).
--export([getpackageversion/0, getmoduleversion/0, getdatabaseversion/0, open/1, getall/1, getproxytype/1, getcountryshort/1, getcountrylong/1, getregion/1, getcity/1, getisp/1, getdomain/1, getusagetype/1, getasn/1, getas/1, getlastseen/1, getthreat/1, isproxy/1, close/0]).
+-export([getpackageversion/0, getmoduleversion/0, getdatabaseversion/0, open/1, getall/1, getproxytype/1, getcountryshort/1, getcountrylong/1, getregion/1, getcity/1, getisp/1, getdomain/1, getusagetype/1, getasn/1, getas/1, getlastseen/1, getthreat/1, getprovider/1, isproxy/1, close/0]).
 -record(ip2proxyrecord, {
 	country_short = "-",
 	country_long = "-",
@@ -13,6 +13,7 @@
 	as = "-",
 	last_seen = "-",
 	threat = "-",
+	provider = "-",
 	is_proxy = 0
 }).
 -define(IF(Cond), (case (Cond) of true -> (0); false -> (1) end)).
@@ -33,7 +34,7 @@ getpackageversion() ->
 	end.
 
 getmoduleversion() ->
-	"3.0.0".
+	"3.1.0".
 
 getdatabaseversion() ->
 	case ets:info(mymeta) of
@@ -112,48 +113,44 @@ open(InputFile) ->
 		Ipv6databaseaddr = readuint32(S, 18),
 		Ipv4indexbaseaddr = readuint32(S, 22),
 		Ipv6indexbaseaddr = readuint32(S, 26),
+		Productcode = readuint8(S, 30),
 		Ipv4columnsize = Databasecolumn bsl 2, % 4 bytes each column
 		Ipv6columnsize = 16 + ((Databasecolumn - 1) bsl 2), % 4 bytes each column, except IPFrom column which is 16 bytes
+		% Producttype = readuint8(S, 31),
+		% Filesize = readuint32(S, 32),
 		file:close(S),
 		
-		case ets:info(mymeta) of
-		undefined ->
-			ets:new(mymeta, [set, named_table]);
-		_ ->
-			ok % do nothing
-		end,
-		
-		ets:insert(mymeta, {inputfile, InputFile}),
-		ets:insert(mymeta, {databasetype, Databasetype}),
-		ets:insert(mymeta, {databasecolumn, Databasecolumn}),
-		ets:insert(mymeta, {databaseyear, Databaseyear}),
-		ets:insert(mymeta, {databasemonth, Databasemonth}),
-		ets:insert(mymeta, {databaseday, Databaseday}),
-		ets:insert(mymeta, {ipv4databasecount, Ipv4databasecount}),
-		ets:insert(mymeta, {ipv4databaseaddr, Ipv4databaseaddr}),
-		ets:insert(mymeta, {ipv6databasecount, Ipv6databasecount}),
-		ets:insert(mymeta, {ipv6databaseaddr, Ipv6databaseaddr}),
-		ets:insert(mymeta, {ipv4indexbaseaddr, Ipv4indexbaseaddr}),
-		ets:insert(mymeta, {ipv6indexbaseaddr, Ipv6indexbaseaddr}),
-		ets:insert(mymeta, {ipv4columnsize, Ipv4columnsize}),
-		ets:insert(mymeta, {ipv6columnsize, Ipv6columnsize}),
-		0; % zero means success
+		if
+			% check if is correct BIN (should be 2 for IP2Proxy BIN file), also checking for zipped file (PK being the first 2 chars)
+			(Productcode /= 2 andalso Databaseyear >= 21) orelse (Databasetype == 80 andalso Databasecolumn == 75) ->
+				io:format("Incorrect IP2Proxy BIN file format. Please make sure that you are using the latest IP2Proxy BIN file.~n", []),
+				halt();
+			true ->
+				case ets:info(mymeta) of
+					undefined ->
+						ets:new(mymeta, [set, named_table]),
+						ets:insert(mymeta, {inputfile, InputFile}),
+						ets:insert(mymeta, {databasetype, Databasetype}),
+						ets:insert(mymeta, {databasecolumn, Databasecolumn}),
+						ets:insert(mymeta, {databaseyear, Databaseyear}),
+						ets:insert(mymeta, {databasemonth, Databasemonth}),
+						ets:insert(mymeta, {databaseday, Databaseday}),
+						ets:insert(mymeta, {ipv4databasecount, Ipv4databasecount}),
+						ets:insert(mymeta, {ipv4databaseaddr, Ipv4databaseaddr}),
+						ets:insert(mymeta, {ipv6databasecount, Ipv6databasecount}),
+						ets:insert(mymeta, {ipv6databaseaddr, Ipv6databaseaddr}),
+						ets:insert(mymeta, {ipv4indexbaseaddr, Ipv4indexbaseaddr}),
+						ets:insert(mymeta, {ipv6indexbaseaddr, Ipv6indexbaseaddr}),
+						ets:insert(mymeta, {ipv4columnsize, Ipv4columnsize}),
+						ets:insert(mymeta, {ipv6columnsize, Ipv6columnsize}),
+						0; % zero means success
+					_ ->
+						ok % do nothing
+				end
+		end;
 	_ ->
 		-1 % negative one means error
 	end.
-
-% readcolcountry(S, Dbtype, Rowoffset, Col) ->
-	% X = "NOT SUPPORTED",
-	% case lists:nth(Dbtype, Col) of
-	% 0 ->
-		% {X, X};
-	% Colpos ->
-		% Coloffset = (Colpos - 1) bsl 2,
-		% X0 = readuint32(S, Rowoffset + Coloffset),
-		% X1 = readstr(S, X0),
-		% X2 = readstr(S, X0 + 3),
-		% {X1, X2}
-	% end.
 
 readcolcountryrow(S, R, Dbtype, Col) ->
 	X = "NOT SUPPORTED",
@@ -168,15 +165,6 @@ readcolcountryrow(S, R, Dbtype, Col) ->
 		{X1, X2}
 	end.
 
-% readcolstring(S, Dbtype, Rowoffset, Col) ->
-	% case lists:nth(Dbtype, Col) of
-	% 0 ->
-		% "NOT SUPPORTED";
-	% Colpos ->
-		% Coloffset = (Colpos - 1) bsl 2,
-		% readstr(S, readuint32(S, Rowoffset + Coloffset))
-	% end.
-
 readcolstringrow(S, R, Dbtype, Col) ->
 	case lists:nth(Dbtype, Col) of
 	0 ->
@@ -187,17 +175,18 @@ readcolstringrow(S, R, Dbtype, Col) ->
 	end.
 
 readrecord(S, Dbtype, Rowoffset, Mode) ->
-	Country_position = [0, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3],
-	Region_position = [0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4],
-	City_position = [0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5],
-	Isp_position = [0, 0, 0, 0, 6, 6, 6, 6, 6, 6, 6],
-	Proxytype_position = [0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-	Domain_position = [0, 0, 0, 0, 0, 7, 7, 7, 7, 7, 7],
-	Usagetype_position = [0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8],
-	Asn_position = [0, 0, 0, 0, 0, 0, 0, 9, 9, 9, 9],
-	As_position = [0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10],
-	Lastseen_position = [0, 0, 0, 0, 0, 0, 0, 0, 11, 11, 11],
-	Threat_position = [0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 12],
+	Country_position = [0, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+	Region_position = [0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+	City_position = [0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+	Isp_position = [0, 0, 0, 0, 6, 6, 6, 6, 6, 6, 6, 6],
+	Proxytype_position = [0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+	Domain_position = [0, 0, 0, 0, 0, 7, 7, 7, 7, 7, 7, 7],
+	Usagetype_position = [0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8],
+	Asn_position = [0, 0, 0, 0, 0, 0, 0, 9, 9, 9, 9, 9],
+	As_position = [0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10, 10],
+	Lastseen_position = [0, 0, 0, 0, 0, 0, 0, 0, 11, 11, 11, 11],
+	Threat_position = [0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 12, 12],
+	Provider_position = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13],
 	
 	Countryshort_field = 1,
 	Countrylong_field = 2,
@@ -212,8 +201,9 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 	As_field = 1024,
 	Lastseen_field = 2048,
 	Threat_field = 4096,
+	Provider_field = 8192,
 	
-	Cols = ?IF(lists:nth(Dbtype, Country_position) == 0) + ?IF(lists:nth(Dbtype, Region_position) == 0) + ?IF(lists:nth(Dbtype, City_position) == 0) + ?IF(lists:nth(Dbtype, Isp_position) == 0) + ?IF(lists:nth(Dbtype, Proxytype_position) == 0) + ?IF(lists:nth(Dbtype, Domain_position) == 0) + ?IF(lists:nth(Dbtype, Usagetype_position) == 0) + ?IF(lists:nth(Dbtype, Asn_position) == 0) + ?IF(lists:nth(Dbtype, As_position) == 0) + ?IF(lists:nth(Dbtype, Lastseen_position) == 0) + ?IF(lists:nth(Dbtype, Threat_position) == 0),
+	Cols = ?IF(lists:nth(Dbtype, Country_position) == 0) + ?IF(lists:nth(Dbtype, Region_position) == 0) + ?IF(lists:nth(Dbtype, City_position) == 0) + ?IF(lists:nth(Dbtype, Isp_position) == 0) + ?IF(lists:nth(Dbtype, Proxytype_position) == 0) + ?IF(lists:nth(Dbtype, Domain_position) == 0) + ?IF(lists:nth(Dbtype, Usagetype_position) == 0) + ?IF(lists:nth(Dbtype, Asn_position) == 0) + ?IF(lists:nth(Dbtype, As_position) == 0) + ?IF(lists:nth(Dbtype, Lastseen_position) == 0) + ?IF(lists:nth(Dbtype, Threat_position) == 0) + ?IF(lists:nth(Dbtype, Provider_position) == 0),
 	Rowlength = Cols bsl 2,
 	
 	case file:pread(S, Rowoffset - 1, Rowlength) of
@@ -224,7 +214,6 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			
 			if
 				(Mode band Proxytype_field /= 0) or (Mode band Isproxy_field /= 0) ->
-					% Proxy_type = readcolstring(S, Dbtype, Rowoffset, Proxytype_position);
 					Proxy_type = readcolstringrow(S, R, Dbtype, Proxytype_position);
 				true ->
 					Proxy_type = ""
@@ -232,7 +221,6 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			
 			if
 				(Mode band Countryshort_field /= 0) or (Mode band Countrylong_field /= 0) or (Mode band Isproxy_field /= 0) ->
-					% {Country_short, Country_long} = readcolcountry(S, Dbtype, Rowoffset, Country_position);
 					{Country_short, Country_long} = readcolcountryrow(S, R, Dbtype, Country_position);
 				true ->
 					{Country_short, Country_long} = {"", ""}
@@ -240,7 +228,6 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			
 			if
 				Mode band Region_field /= 0 ->
-					% Region = readcolstring(S, Dbtype, Rowoffset, Region_position);
 					Region = readcolstringrow(S, R, Dbtype, Region_position);
 				true ->
 					Region = ""
@@ -248,7 +235,6 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			
 			if
 				Mode band City_field /= 0 ->
-					% City = readcolstring(S, Dbtype, Rowoffset, City_position);
 					City = readcolstringrow(S, R, Dbtype, City_position);
 				true ->
 					City = ""
@@ -256,7 +242,6 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			
 			if
 				Mode band Isp_field /= 0 ->
-					% Isp = readcolstring(S, Dbtype, Rowoffset, Isp_position);
 					Isp = readcolstringrow(S, R, Dbtype, Isp_position);
 				true ->
 					Isp = ""
@@ -264,7 +249,6 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			
 			if
 				Mode band Domain_field /= 0 ->
-					% Domain = readcolstring(S, Dbtype, Rowoffset, Domain_position);
 					Domain = readcolstringrow(S, R, Dbtype, Domain_position);
 				true ->
 					Domain = ""
@@ -272,7 +256,6 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			
 			if
 				Mode band Usagetype_field /= 0 ->
-					% Usage_type = readcolstring(S, Dbtype, Rowoffset, Usagetype_position);
 					Usage_type = readcolstringrow(S, R, Dbtype, Usagetype_position);
 				true ->
 					Usage_type = ""
@@ -280,7 +263,6 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			
 			if
 				Mode band Asn_field /= 0 ->
-					% Asn = readcolstring(S, Dbtype, Rowoffset, Asn_position);
 					Asn = readcolstringrow(S, R, Dbtype, Asn_position);
 				true ->
 					Asn = ""
@@ -288,7 +270,6 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			
 			if
 				Mode band As_field /= 0 ->
-					% As = readcolstring(S, Dbtype, Rowoffset, As_position);
 					As = readcolstringrow(S, R, Dbtype, As_position);
 				true ->
 					As = ""
@@ -296,7 +277,6 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			
 			if
 				Mode band Lastseen_field /= 0 ->
-					% Last_seen = readcolstring(S, Dbtype, Rowoffset, Lastseen_position);
 					Last_seen = readcolstringrow(S, R, Dbtype, Lastseen_position);
 				true ->
 					Last_seen = ""
@@ -304,10 +284,16 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			
 			if
 				Mode band Threat_field /= 0 ->
-					% Threat = readcolstring(S, Dbtype, Rowoffset, Threat_position);
 					Threat = readcolstringrow(S, R, Dbtype, Threat_position);
 				true ->
 					Threat = ""
+			end,
+			
+			if
+				Mode band Provider_field /= 0 ->
+					Provider = readcolstringrow(S, R, Dbtype, Provider_position);
+				true ->
+					Provider = ""
 			end,
 			
 			if
@@ -335,6 +321,7 @@ readrecord(S, Dbtype, Rowoffset, Mode) ->
 			as = As,
 			last_seen = Last_seen,
 			threat = Threat,
+			provider = Provider,
 			is_proxy = Is_proxy
 			}
 	end.
@@ -361,10 +348,8 @@ searchtree(S, Ipnum, Dbtype, Low, High, BaseAddr, Colsize, Iptype, Mode) ->
 				Ipnum >= Ipfrom andalso Ipnum < Ipto ->
 					if
 						Iptype == ipv4 ->
-							% readrecord(S, Dbtype + 1, Rowoffset, Mode);
 							readrecord(S, Dbtype + 1, Rowoffset + 4, Mode);
 						true ->
-							% readrecord(S, Dbtype + 1, Rowoffset + 12, Mode)
 							readrecord(S, Dbtype + 1, Rowoffset + 16, Mode)
 					end;
 				true ->
@@ -389,6 +374,7 @@ searchtree(S, Ipnum, Dbtype, Low, High, BaseAddr, Colsize, Iptype, Mode) ->
 			as = X,
 			last_seen = X,
 			threat = X,
+			provider = X,
 			is_proxy = -1
 			}
 	end.
@@ -416,7 +402,7 @@ search6(S, Ipnum, Dbtype, Low, High, Baseaddr, Indexbaseaddr, Colsize, Mode) ->
 	end.
 
 getall(Ip) ->
-	query(Ip, 8191).
+	query(Ip, 16383).
 
 getcountryshort(Ip) ->
 	Result = query(Ip, 1),
@@ -465,6 +451,10 @@ getlastseen(Ip) ->
 getthreat(Ip) ->
 	Result = query(Ip, 4096),
 	Result#ip2proxyrecord.threat.
+
+getprovider(Ip) ->
+	Result = query(Ip, 8192),
+	Result#ip2proxyrecord.provider.
 
 isproxy(Ip) ->
 	Result = query(Ip, 64),
@@ -537,6 +527,7 @@ query(Ip, Mode) ->
 					as = X,
 					last_seen = X,
 					threat = X,
+					provider = X,
 					is_proxy = -1
 					}
 				end,
@@ -556,6 +547,7 @@ query(Ip, Mode) ->
 				as = Y,
 				last_seen = Y,
 				threat = Y,
+				provider = Y,
 				is_proxy = -1
 				}
 			end

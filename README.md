@@ -19,7 +19,7 @@ Below are the methods supported in this package.
 |---|---|
 |open|Open the IP2Proxy BIN data for lookup.|
 |close|Close and clean up metadata.|
-|getpackageversion|Get the package version (1 to 10 for PX1 to PX10 respectively).|
+|getpackageversion|Get the package version (1 to 11 for PX1 to PX11 respectively).|
 |getmoduleversion|Get the module version.|
 |getdatabaseversion|Get the database version.|
 |isproxy|Check whether if an IP address was a proxy. Returned value:<ul><li>-1 : errors</li><li>0 : not a proxy</li><li>1 : a proxy</li><li>2 : a data center IP address or search engine robot</li></ul>|
@@ -36,6 +36,7 @@ Below are the methods supported in this package.
 |getas|Return the autonomous system name of the proxy.|
 |getlastseen|Return the number of days that the proxy was last seen.|
 |getthreat|Return the threat type of the proxy.|
+|getprovider|Return the provider of the proxy.|
 
 ## Example
 
