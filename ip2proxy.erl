@@ -1,5 +1,5 @@
 -module(ip2proxy).
--export([getpackageversion/0, getmoduleversion/0, getdatabaseversion/0, open/1, getall/1, getproxytype/1, getcountryshort/1, getcountrylong/1, getregion/1, getcity/1, getisp/1, getdomain/1, getusagetype/1, getasn/1, getas/1, getlastseen/1, getthreat/1, getprovider/1, isproxy/1, close/0]).
+-export([getpackageversion/0, getmoduleversion/0, getdatabaseversion/0, open/1, getall/1, getproxytype/1, getcountryshort/1, getcountrylong/1, getregion/1, getcity/1, getisp/1, getdomain/1, getusagetype/1, getasn/1, getas/1, getlastseen/1, getthreat/1, getprovider/1, isproxy/1, close/0, openws/3, lookup/1, getcredit/0]).
 -record(ip2proxyrecord, {
 	country_short = "-",
 	country_long = "-",
@@ -16,49 +16,66 @@
 	provider = "-",
 	is_proxy = 0
 }).
+-record(ip2proxyresult, {
+	response = "-",
+	countryCode = "-",
+	countryName = "-",
+	regionName = "-",
+	cityName = "-",
+	isp = "-",
+	proxyType = "-",
+	domain = "-",
+	usageType = "-",
+	asn = "-",
+	as = "-",
+	lastSeen = "-",
+	threat = "-",
+	provider = "-",
+	isProxy = "-"
+}).
 -define(IF(Cond), (case (Cond) of true -> (0); false -> (1) end)).
 
 getpackageversion() ->
 	case ets:info(mymeta) of
-	undefined ->
-		io:format("Error: Unable to read metadata.~n", []),
-		{}; % return empty
-	_ ->
-		case ets:lookup(mymeta, databasetype) of
-		[] ->
+		undefined ->
 			io:format("Error: Unable to read metadata.~n", []),
 			{}; % return empty
-		[{_, Databasetype}] ->
-			Databasetype
-		end
+		_ ->
+			case ets:lookup(mymeta, databasetype) of
+				[] ->
+					io:format("Error: Unable to read metadata.~n", []),
+					{}; % return empty
+				[{_, Databasetype}] ->
+					Databasetype
+				end
 	end.
 
 getmoduleversion() ->
-	"3.1.0".
+	"3.2.0".
 
 getdatabaseversion() ->
 	case ets:info(mymeta) of
-	undefined ->
-		io:format("Error: Unable to read metadata.~n", []),
-		{}; % return empty
-	_ ->
-		case ets:lookup(mymeta, databaseyear) of
-		[] ->
+		undefined ->
 			io:format("Error: Unable to read metadata.~n", []),
 			{}; % return empty
-		[{_, Databaseyear}] ->
-			[{_, Databasemonth}] = ets:lookup(mymeta, databasemonth),
-			[{_, Databaseday}] = ets:lookup(mymeta, databaseday),
-			lists:concat(["20", Databaseyear, ".", Databasemonth, ".", Databaseday])
-		end
+		_ ->
+			case ets:lookup(mymeta, databaseyear) of
+				[] ->
+					io:format("Error: Unable to read metadata.~n", []),
+					{}; % return empty
+				[{_, Databaseyear}] ->
+					[{_, Databasemonth}] = ets:lookup(mymeta, databasemonth),
+					[{_, Databaseday}] = ets:lookup(mymeta, databaseday),
+					lists:concat(["20", Databaseyear, ".", Databasemonth, ".", Databaseday])
+			end
 	end.
 
 readuint(S, StartPos, Len) ->
 	case file:pread(S, StartPos - 1, Len) of
-	eof ->
-		ok;
-	{ok, Data} ->
-		binary:decode_unsigned(Data, little)
+		eof ->
+			ok;
+		{ok, Data} ->
+			binary:decode_unsigned(Data, little)
 	end.
 
 readuintrow(R, StartPos, Len) ->
@@ -79,24 +96,24 @@ readuint128(S, StartPos) ->
 
 readstr(S, StartPos) ->
 	case file:pread(S, StartPos, 1) of
-	eof ->
-		ok;
-	{ok, LenRaw} ->
-		Len = binary:decode_unsigned(LenRaw, little),
-		case file:pread(S, StartPos + 1, Len) of
 		eof ->
 			ok;
-		{ok, Data} ->
-			binary_to_list(Data)
-		end
+		{ok, LenRaw} ->
+			Len = binary:decode_unsigned(LenRaw, little),
+			case file:pread(S, StartPos + 1, Len) of
+				eof ->
+					ok;
+				{ok, Data} ->
+					binary_to_list(Data)
+			end
 	end.
 
 input(InputFile) ->
 	case file:open(InputFile, [read, binary, raw]) of
-	{ok, S} ->
-		{ok, S};
-	{_, _} ->
-		-1
+		{ok, S} ->
+			{ok, S};
+		{_, _} ->
+			-1
 	end.
 
 open(InputFile) ->
@@ -155,23 +172,23 @@ open(InputFile) ->
 readcolcountryrow(S, R, Dbtype, Col) ->
 	X = "NOT SUPPORTED",
 	case lists:nth(Dbtype, Col) of
-	0 ->
-		{X, X};
-	Colpos ->
-		Coloffset = (Colpos - 2) bsl 2,
-		X0 = readuint32row(R, Coloffset),
-		X1 = readstr(S, X0),
-		X2 = readstr(S, X0 + 3),
-		{X1, X2}
+		0 ->
+			{X, X};
+		Colpos ->
+			Coloffset = (Colpos - 2) bsl 2,
+			X0 = readuint32row(R, Coloffset),
+			X1 = readstr(S, X0),
+			X2 = readstr(S, X0 + 3),
+			{X1, X2}
 	end.
 
 readcolstringrow(S, R, Dbtype, Col) ->
 	case lists:nth(Dbtype, Col) of
-	0 ->
-		"NOT SUPPORTED";
-	Colpos ->
-		Coloffset = (Colpos - 2) bsl 2,
-		readstr(S, readuint32row(R, Coloffset))
+		0 ->
+			"NOT SUPPORTED";
+		Colpos ->
+			Coloffset = (Colpos - 2) bsl 2,
+			readstr(S, readuint32row(R, Coloffset))
 	end.
 
 readrecord(S, Dbtype, Rowoffset, Mode) ->
@@ -472,93 +489,362 @@ query(Ip, Mode) ->
 	Last32bits = 4294967295,
 	
 	case ets:info(mymeta) of
-	undefined ->
-		io:format("Error: Unable to read metadata.~n", []),
-		{}; % return empty
-	_ ->
-		case ets:lookup(mymeta, inputfile) of
-		[] ->
+		undefined ->
 			io:format("Error: Unable to read metadata.~n", []),
 			{}; % return empty
-		[{_, InputFile}] ->
-			case input(InputFile) of
-			{ok, S} ->
-				[{_, Databasetype}] = ets:lookup(mymeta, databasetype),
-				% [{_, Databasecolumn}] = ets:lookup(mymeta, databasecolumn),
-				% [{_, Databaseyear}] = ets:lookup(mymeta, databaseyear),
-				% [{_, Databasemonth}] = ets:lookup(mymeta, databasemonth),
-				% [{_, Databaseday}] = ets:lookup(mymeta, databaseday),
-				[{_, Ipv4databasecount}] = ets:lookup(mymeta, ipv4databasecount),
-				[{_, Ipv4databaseaddr}] = ets:lookup(mymeta, ipv4databaseaddr),
-				[{_, Ipv6databasecount}] = ets:lookup(mymeta, ipv6databasecount),
-				[{_, Ipv6databaseaddr}] = ets:lookup(mymeta, ipv6databaseaddr),
-				[{_, Ipv4indexbaseaddr}] = ets:lookup(mymeta, ipv4indexbaseaddr),
-				[{_, Ipv6indexbaseaddr}] = ets:lookup(mymeta, ipv6indexbaseaddr),
-				[{_, Ipv4columnsize}] = ets:lookup(mymeta, ipv4columnsize),
-				[{_, Ipv6columnsize}] = ets:lookup(mymeta, ipv6columnsize),
-				
-				Result = case inet:parse_address(Ip) of
-				{ok, {X1, X2, X3, X4}} ->
-					Ipnum = (X1 bsl 24) + (X2 bsl 16) + (X3 bsl 8) + (X4),
-					search4(S, Ipnum, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
-				{ok, {X1, X2, X3, X4, X5, X6, X7, X8}} ->
-					Ipnum = (X1 bsl 112) + (X2 bsl 96) + (X3 bsl 80) + (X4 bsl 64) + (X5 bsl 48) + (X6 bsl 32) + (X7 bsl 16) + X8,
-					if
-						Ipnum >= Fromv4mapped andalso Ipnum =< Tov4mapped ->
-							search4(S, Ipnum - Fromv4mapped, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
-						Ipnum >= From6to4 andalso Ipnum =< To6to4 ->
-							search4(S, (Ipnum bsr 80) band Last32bits, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
-						Ipnum >= Fromteredo andalso Ipnum =< Toteredo ->
-							search4(S, ((bnot Ipnum) band Last32bits), Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
-						true ->
-							search6(S, Ipnum, Databasetype, 0, Ipv6databasecount, Ipv6databaseaddr, Ipv6indexbaseaddr, Ipv6columnsize, Mode)
-					end;
-				{_, _} ->
-					#ip2proxyrecord{
-					country_short = X,
-					country_long = X,
-					region = X,
-					city = X,
-					isp = X,
-					proxy_type = X,
-					domain = X,
-					usage_type = X,
-					asn = X,
-					as = X,
-					last_seen = X,
-					threat = X,
-					provider = X,
-					is_proxy = -1
-					}
-				end,
-				file:close(S),
-				Result;
-			_ ->
-				#ip2proxyrecord{
-				country_short = Y,
-				country_long = Y,
-				region = Y,
-				city = Y,
-				isp = Y,
-				proxy_type = Y,
-				domain = Y,
-				usage_type = Y,
-				asn = Y,
-				as = Y,
-				last_seen = Y,
-				threat = Y,
-				provider = Y,
-				is_proxy = -1
-				}
+		_ ->
+			case ets:lookup(mymeta, inputfile) of
+				[] ->
+					io:format("Error: Unable to read metadata.~n", []),
+					{}; % return empty
+				[{_, InputFile}] ->
+					case input(InputFile) of
+						{ok, S} ->
+							[{_, Databasetype}] = ets:lookup(mymeta, databasetype),
+							% [{_, Databasecolumn}] = ets:lookup(mymeta, databasecolumn),
+							% [{_, Databaseyear}] = ets:lookup(mymeta, databaseyear),
+							% [{_, Databasemonth}] = ets:lookup(mymeta, databasemonth),
+							% [{_, Databaseday}] = ets:lookup(mymeta, databaseday),
+							[{_, Ipv4databasecount}] = ets:lookup(mymeta, ipv4databasecount),
+							[{_, Ipv4databaseaddr}] = ets:lookup(mymeta, ipv4databaseaddr),
+							[{_, Ipv6databasecount}] = ets:lookup(mymeta, ipv6databasecount),
+							[{_, Ipv6databaseaddr}] = ets:lookup(mymeta, ipv6databaseaddr),
+							[{_, Ipv4indexbaseaddr}] = ets:lookup(mymeta, ipv4indexbaseaddr),
+							[{_, Ipv6indexbaseaddr}] = ets:lookup(mymeta, ipv6indexbaseaddr),
+							[{_, Ipv4columnsize}] = ets:lookup(mymeta, ipv4columnsize),
+							[{_, Ipv6columnsize}] = ets:lookup(mymeta, ipv6columnsize),
+							
+							Result = case inet:parse_address(Ip) of
+								{ok, {X1, X2, X3, X4}} ->
+									Ipnum = (X1 bsl 24) + (X2 bsl 16) + (X3 bsl 8) + (X4),
+									search4(S, Ipnum, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
+								{ok, {X1, X2, X3, X4, X5, X6, X7, X8}} ->
+									Ipnum = (X1 bsl 112) + (X2 bsl 96) + (X3 bsl 80) + (X4 bsl 64) + (X5 bsl 48) + (X6 bsl 32) + (X7 bsl 16) + X8,
+									if
+										Ipnum >= Fromv4mapped andalso Ipnum =< Tov4mapped ->
+											search4(S, Ipnum - Fromv4mapped, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
+										Ipnum >= From6to4 andalso Ipnum =< To6to4 ->
+											search4(S, (Ipnum bsr 80) band Last32bits, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
+										Ipnum >= Fromteredo andalso Ipnum =< Toteredo ->
+											search4(S, ((bnot Ipnum) band Last32bits), Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
+										true ->
+											search6(S, Ipnum, Databasetype, 0, Ipv6databasecount, Ipv6databaseaddr, Ipv6indexbaseaddr, Ipv6columnsize, Mode)
+									end;
+								{_, _} ->
+									#ip2proxyrecord{
+									country_short = X,
+									country_long = X,
+									region = X,
+									city = X,
+									isp = X,
+									proxy_type = X,
+									domain = X,
+									usage_type = X,
+									asn = X,
+									as = X,
+									last_seen = X,
+									threat = X,
+									provider = X,
+									is_proxy = -1
+									}
+							end,
+							file:close(S),
+							Result;
+						_ ->
+							#ip2proxyrecord{
+							country_short = Y,
+							country_long = Y,
+							region = Y,
+							city = Y,
+							isp = Y,
+							proxy_type = Y,
+							domain = Y,
+							usage_type = Y,
+							asn = Y,
+							as = Y,
+							last_seen = Y,
+							threat = Y,
+							provider = Y,
+							is_proxy = -1
+							}
+					end
 			end
-		end
 	end.
 
 close() ->
 	case ets:info(mymeta) of
-	undefined ->
-		ok; % do nothing
-	_ ->
-		ets:delete(mymeta)
+		undefined ->
+			ok; % do nothing
+		_ ->
+			ets:delete(mymeta)
 	end,
 	0. % zero means successful
+
+closews() ->
+	case ets:info(myws) of
+		undefined ->
+			ok;
+		_ ->
+			ets:delete(myws),
+			ok
+	end.
+
+configurews(APIKey, APIPackage, UseSSL) ->
+	_ = closews(),
+	
+	case ets:info(myws) of
+		undefined ->
+			ets:new(myws, [set, named_table]),
+			ets:insert(myws, {apikey, APIKey}),
+			ets:insert(myws, {apipackage, APIPackage}),
+			ets:insert(myws, {usessl, UseSSL}),
+			ok;
+		_ ->
+			ok
+	end.
+
+checkparams(APIKey, APIPackage) ->
+	RegExp = "^[\\dA-Z]{10}$",
+	RegExp2 = "^PX\\d+$",
+	case re:run(APIKey, RegExp) of
+		{match, _} ->
+			case re:run(APIPackage, RegExp2) of
+				nomatch ->
+					io:format("Invalid package name.~n", []),
+					halt();
+				{match, _} ->
+					ok % do nothing
+			end;
+		nomatch ->
+			io:format("Invalid API key.~n", []),
+			halt()
+	end.
+
+
+openws(APIKey, APIPackage, UseSSL) ->
+	case checkparams(APIKey, APIPackage) of
+		ok ->
+			case UseSSL of
+				false ->
+					configurews(APIKey, APIPackage, UseSSL);
+				_ ->
+					configurews(APIKey, APIPackage, true)
+			end;
+		_ ->
+			-1 % should have been halted in checkparams
+	end.
+
+readjson(Body) ->
+	Body2 = string:trim(Body, leading, "{\""),
+	Body3 = string:trim(Body2, trailing, "\"}"),
+	L = string:split(Body3, "\",\"", all),
+	F = fun(Elem, Acc) -> [list_to_tuple(string:split(Elem, "\":\"")) | Acc] end,
+	maps:from_list(lists:foldl(F, [], L)).
+
+
+lookup(IPAddress) ->
+	ssl:start(),
+	inets:start(),
+	
+	case ets:info(myws) of
+		undefined ->
+			io:format("Run openws first.~n", []),
+			halt();
+		_ ->
+			case ets:lookup(myws, apikey) of
+				[] ->
+					io:format("Run openws first.~n", []),
+					halt();
+				[{_, APIKey}] ->
+					case ets:lookup(myws, apipackage) of
+						[] ->
+							io:format("Run openws first.~n", []),
+							halt();
+						[{_, APIPackage}] ->
+							case ets:lookup(myws, usessl) of
+								[] ->
+									io:format("Run openws first.~n", []),
+									halt();
+								[{_, UseSSL}] ->
+									case UseSSL of
+										true ->
+											Protocol = "https";
+										_ ->
+											Protocol = "http"
+									end,
+									MyParams = uri_string:compose_query([{"key", APIKey}, {"package", APIPackage}, {"ip", IPAddress}]),
+									
+									case httpc:request(get, {Protocol ++ "://api.ip2proxy.com/?" ++ MyParams, []}, [{ssl, [{versions, ['tlsv1.2']}]}, {autoredirect, false}], []) of
+										{ok, {{_, 200, _}, _, Body}} ->
+											% Body2 = string:trim(Body, leading, "{\""),
+											% Body3 = string:trim(Body2, trailing, "\"}"),
+											% L = string:split(Body3, "\",\"", all),
+											% F = fun(Elem, Acc) -> [list_to_tuple(string:split(Elem, "\":\"")) | Acc] end,
+											% Map = maps:from_list(lists:foldl(F, [], L)),
+											
+											Map = readjson(Body),
+											
+											Response = case maps:is_key("response", Map) of
+												true ->
+													maps:get("response", Map);
+												_ ->
+													""
+											end,
+											CountryCode = case maps:is_key("countryCode", Map) of
+												true ->
+													maps:get("countryCode", Map);
+												_ ->
+													""
+											end,
+											CountryName = case maps:is_key("countryName", Map) of
+												true ->
+													maps:get("countryName", Map);
+												_ ->
+													""
+											end,
+											RegionName = case maps:is_key("regionName", Map) of
+												true ->
+													maps:get("regionName", Map);
+												_ ->
+													""
+											end,
+											CityName = case maps:is_key("cityName", Map) of
+												true ->
+													maps:get("cityName", Map);
+												_ ->
+													""
+											end,
+											ISP = case maps:is_key("isp", Map) of
+												true ->
+													maps:get("isp", Map);
+												_ ->
+													""
+											end,
+											ProxyType = case maps:is_key("proxyType", Map) of
+												true ->
+													maps:get("proxyType", Map);
+												_ ->
+													""
+											end,
+											Domain = case maps:is_key("domain", Map) of
+												true ->
+													maps:get("domain", Map);
+												_ ->
+													""
+											end,
+											UsageType = case maps:is_key("usageType", Map) of
+												true ->
+													maps:get("usageType", Map);
+												_ ->
+													""
+											end,
+											ASN = case maps:is_key("asn", Map) of
+												true ->
+													maps:get("asn", Map);
+												_ ->
+													""
+											end,
+											AS = case maps:is_key("as", Map) of
+												true ->
+													maps:get("as", Map);
+												_ ->
+													""
+											end,
+											LastSeen = case maps:is_key("lastSeen", Map) of
+												true ->
+													maps:get("lastSeen", Map);
+												_ ->
+													""
+											end,
+											Threat = case maps:is_key("threat", Map) of
+												true ->
+													maps:get("threat", Map);
+												_ ->
+													""
+											end,
+											Provider = case maps:is_key("provider", Map) of
+												true ->
+													maps:get("provider", Map);
+												_ ->
+													""
+											end,
+											IsProxy = case maps:is_key("isProxy", Map) of
+												true ->
+													maps:get("isProxy", Map);
+												_ ->
+													""
+											end,
+											
+											#ip2proxyresult{
+												response = Response,
+												countryCode = CountryCode,
+												countryName = CountryName,
+												regionName = RegionName,
+												cityName = CityName,
+												isp = ISP,
+												proxyType = ProxyType,
+												domain = Domain,
+												usageType = UsageType,
+												asn = ASN,
+												as = AS,
+												lastSeen = LastSeen,
+												threat = Threat,
+												provider = Provider,
+												isProxy = IsProxy
+											};
+										{error, Reason} ->
+											{error, Reason}
+									end
+							end
+					end
+			end
+	end.
+
+getcredit() ->
+	ssl:start(),
+	inets:start(),
+	
+	case ets:info(myws) of
+		undefined ->
+			io:format("Run openws first.~n", []),
+			halt();
+		_ ->
+			case ets:lookup(myws, apikey) of
+				[] ->
+					io:format("Run openws first.~n", []),
+					halt();
+				[{_, APIKey}] ->
+					case ets:lookup(myws, usessl) of
+						[] ->
+							io:format("Run openws first.~n", []),
+							halt();
+						[{_, UseSSL}] ->
+							case UseSSL of
+								true ->
+									Protocol = "https";
+								_ ->
+									Protocol = "http"
+							end,
+							MyParams = uri_string:compose_query([{"key", APIKey}, {"check", "true"}]),
+							
+							case httpc:request(get, {Protocol ++ "://api.ip2proxy.com/?" ++ MyParams, []}, [{ssl, [{versions, ['tlsv1.2']}]}, {autoredirect, false}], []) of
+								{ok, {{_, 200, _}, _, Body}} ->
+									% Body2 = string:trim(Body, leading, "{\""),
+									% Body3 = string:trim(Body2, trailing, "\"}"),
+									% L = string:split(Body3, "\",\"", all),
+									% F = fun(Elem, Acc) -> [list_to_tuple(string:split(Elem, "\":\"")) | Acc] end,
+									% Map = maps:from_list(lists:foldl(F, [], L)),
+									Map = readjson(Body),
+									
+									case maps:is_key("response", Map) of
+										true ->
+											maps:get("response", Map);
+										_ ->
+											""
+									end;
+								{error, Reason} ->
+									{error, Reason}
+							end
+					end
+			end
+	end.

@@ -1,5 +1,5 @@
 -module(test).
--export([testme/0]).
+-export([testme/0, testme2/0]).
 
 printme(V) ->
 	case V of
@@ -57,3 +57,39 @@ testme() ->
 	_ ->
 		ok
 	end.
+
+testme2() ->
+	APIKey = "YOUR_API_KEY",
+	APIPackage = "PX11",
+	UseSSL = true,
+	IP = "37.252.228.50",
+	
+	ip2proxy:openws(APIKey, APIPackage, UseSSL),
+	Result = ip2proxy:lookup(IP),
+	case Result of
+		{ip2proxyresult, Response, CountryShort, CountryLong, RegionName, CityName, ISP, ProxyType, Domain, UsageType, ASN, AS, LastSeen, Threat, Provider, IsProxy} ->
+			case Response of
+				"OK" ->
+					io:format("CountryShort: ~p~n", [CountryShort]),
+					io:format("CountryLong: ~p~n", [CountryLong]),
+					io:format("RegionName: ~p~n", [RegionName]),
+					io:format("CityName: ~p~n", [CityName]),
+					io:format("ISP: ~p~n", [ISP]),
+					io:format("ProxyType: ~p~n", [ProxyType]),
+					io:format("Domain: ~p~n", [Domain]),
+					io:format("UsageType: ~p~n", [UsageType]),
+					io:format("ASN: ~p~n", [ASN]),
+					io:format("AS: ~p~n", [AS]),
+					io:format("LastSeen: ~p~n", [LastSeen]),
+					io:format("Threat: ~p~n", [Threat]),
+					io:format("Provider: ~p~n", [Provider]),
+					io:format("IsProxy: ~p~n", [IsProxy]);
+				_ ->
+					io:format("Error: ~p~n", [Response])
+			end;
+		{error, Reason} ->
+			io:format("Error: ~p~n", [Reason])
+	end,
+	
+	Credits = ip2proxy:getcredit(),
+	io:format("Credit Balance: ~p~n", [Credits]).
