@@ -51,7 +51,7 @@ getpackageversion() ->
 	end.
 
 getmoduleversion() ->
-	"3.3.1".
+	"3.3.2".
 
 getdatabaseversion() ->
 	case ets:info(mymeta) of
@@ -484,6 +484,7 @@ isproxy(Ip) ->
 query(Ip, Mode) ->
 	X = "INVALID IP ADDRESS",
 	Y = "INVALID BIN FILE",
+	Z = "IPV6 MISSING IN IPV4 BIN",
 	Fromv4mapped = 281470681743360,
 	Tov4mapped = 281474976710655,
 	From6to4 = 42545680458834377588178886921629466624,
@@ -521,18 +522,71 @@ query(Ip, Mode) ->
 							Result = case inet:parse_address(Ip) of
 								{ok, {X1, X2, X3, X4}} ->
 									Ipnum = (X1 bsl 24) + (X2 bsl 16) + (X3 bsl 8) + (X4),
-									search4(S, Ipnum, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
+									if
+										Ipnum == 4294967295 ->
+											Ipnum2 = Ipnum - 1;
+										true ->
+											Ipnum2 = Ipnum
+									end,
+									search4(S, Ipnum2, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
 								{ok, {X1, X2, X3, X4, X5, X6, X7, X8}} ->
 									Ipnum = (X1 bsl 112) + (X2 bsl 96) + (X3 bsl 80) + (X4 bsl 64) + (X5 bsl 48) + (X6 bsl 32) + (X7 bsl 16) + X8,
 									if
 										Ipnum >= Fromv4mapped andalso Ipnum =< Tov4mapped ->
-											search4(S, Ipnum - Fromv4mapped, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
+											Ipnum2 = Ipnum - Fromv4mapped,
+											if
+												Ipnum2 == 4294967295 ->
+													Ipnum3 = Ipnum2 - 1;
+												true ->
+													Ipnum3 = Ipnum2
+											end,
+											search4(S, Ipnum3, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
 										Ipnum >= From6to4 andalso Ipnum =< To6to4 ->
-											search4(S, (Ipnum bsr 80) band Last32bits, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
+											Ipnum2 = (Ipnum bsr 80) band Last32bits,
+											if
+												Ipnum2 == 4294967295 ->
+													Ipnum3 = Ipnum2 - 1;
+												true ->
+													Ipnum3 = Ipnum2
+											end,
+											search4(S, Ipnum3, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
 										Ipnum >= Fromteredo andalso Ipnum =< Toteredo ->
-											search4(S, ((bnot Ipnum) band Last32bits), Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
+											Ipnum2 = (bnot Ipnum) band Last32bits,
+											if
+												Ipnum2 == 4294967295 ->
+													Ipnum3 = Ipnum2 - 1;
+												true ->
+													Ipnum3 = Ipnum2
+											end,
+											search4(S, Ipnum3, Databasetype, 0, Ipv4databasecount, Ipv4databaseaddr, Ipv4indexbaseaddr, Ipv4columnsize, Mode);
 										true ->
-											search6(S, Ipnum, Databasetype, 0, Ipv6databasecount, Ipv6databaseaddr, Ipv6indexbaseaddr, Ipv6columnsize, Mode)
+											if
+												Ipv6databasecount > 0 ->
+													if
+														Ipnum == 340282366920938463463374607431768211455 ->
+															Ipnum2 = Ipnum - 1;
+														true ->
+															Ipnum2 = Ipnum
+													end,
+													search6(S, Ipnum2, Databasetype, 0, Ipv6databasecount, Ipv6databaseaddr, Ipv6indexbaseaddr, Ipv6columnsize, Mode);
+												true ->
+													#ip2proxyrecord{
+													country_short = Z,
+													country_long = Z,
+													region = Z,
+													city = Z,
+													isp = Z,
+													proxy_type = Z,
+													domain = Z,
+													usage_type = Z,
+													asn = Z,
+													as = Z,
+													last_seen = Z,
+													threat = Z,
+													provider = Z,
+													is_proxy = -1
+													}
+											end
 									end;
 								{_, _} ->
 									#ip2proxyrecord{
