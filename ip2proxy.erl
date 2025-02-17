@@ -1,5 +1,5 @@
 -module(ip2proxy).
--export([getpackageversion/0, getmoduleversion/0, getdatabaseversion/0, open/1, getall/1, getproxytype/1, getcountryshort/1, getcountrylong/1, getregion/1, getcity/1, getisp/1, getdomain/1, getusagetype/1, getasn/1, getas/1, getlastseen/1, getthreat/1, getprovider/1, isproxy/1, close/0, openws/3, lookup/1, getcredit/0]).
+-export([getpackageversion/0, getmoduleversion/0, getdatabaseversion/0, open/1, getall/1, getproxytype/1, getcountryshort/1, getcountrylong/1, getregion/1, getcity/1, getisp/1, getdomain/1, getusagetype/1, getasn/1, getas/1, getlastseen/1, getthreat/1, getprovider/1, getfraudscore/1, isproxy/1, close/0, openws/3, lookup/1, getcredit/0]).
 -record(ip2proxyrecord, {
 	country_short = "-",
 	country_long = "-",
@@ -14,6 +14,7 @@
 	last_seen = "-",
 	threat = "-",
 	provider = "-",
+	fraud_score = "-",
 	is_proxy = 0
 }).
 -record(ip2proxyresult, {
@@ -31,6 +32,7 @@
 	lastSeen = "-",
 	threat = "-",
 	provider = "-",
+	fraudScore = "-",
 	isProxy = "-"
 }).
 -define(IF(Cond), (case (Cond) of true -> (0); false -> (1) end)).
@@ -51,7 +53,7 @@ getpackageversion() ->
 	end.
 
 getmoduleversion() ->
-	"3.3.3".
+	"3.4.0".
 
 getdatabaseversion() ->
 	case ets:info(mymeta) of
@@ -183,18 +185,19 @@ readcolstringrow(S, R, Dbtype, Col) ->
 	end.
 
 readrecord(S, R, Dbtype, Mode) ->
-	Country_position = [0, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
-	Region_position = [0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4, 4],
-	City_position = [0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 5],
-	Isp_position = [0, 0, 0, 0, 6, 6, 6, 6, 6, 6, 6, 6],
-	Proxytype_position = [0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
-	Domain_position = [0, 0, 0, 0, 0, 7, 7, 7, 7, 7, 7, 7],
-	Usagetype_position = [0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8],
-	Asn_position = [0, 0, 0, 0, 0, 0, 0, 9, 9, 9, 9, 9],
-	As_position = [0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10, 10],
-	Lastseen_position = [0, 0, 0, 0, 0, 0, 0, 0, 11, 11, 11, 11],
-	Threat_position = [0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 12, 12],
-	Provider_position = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13],
+	Country_position = [0, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3],
+	Region_position = [0, 0, 0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+	City_position = [0, 0, 0, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5],
+	Isp_position = [0, 0, 0, 0, 6, 6, 6, 6, 6, 6, 6, 6, 6],
+	Proxytype_position = [0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+	Domain_position = [0, 0, 0, 0, 0, 7, 7, 7, 7, 7, 7, 7, 7],
+	Usagetype_position = [0, 0, 0, 0, 0, 0, 8, 8, 8, 8, 8, 8, 8],
+	Asn_position = [0, 0, 0, 0, 0, 0, 0, 9, 9, 9, 9, 9, 9],
+	As_position = [0, 0, 0, 0, 0, 0, 0, 10, 10, 10, 10, 10, 10],
+	Lastseen_position = [0, 0, 0, 0, 0, 0, 0, 0, 11, 11, 11, 11, 11],
+	Threat_position = [0, 0, 0, 0, 0, 0, 0, 0, 0, 12, 12, 12, 12],
+	Provider_position = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 13, 13],
+	Fraudscore_position = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 14],
 	
 	Countryshort_field = 1,
 	Countrylong_field = 2,
@@ -210,6 +213,7 @@ readrecord(S, R, Dbtype, Mode) ->
 	Lastseen_field = 2048,
 	Threat_field = 4096,
 	Provider_field = 8192,
+	Fraudscore_field = 16384,
 	
 	if
 		(Mode band Proxytype_field /= 0) or (Mode band Isproxy_field /= 0) ->
@@ -296,6 +300,13 @@ readrecord(S, R, Dbtype, Mode) ->
 	end,
 	
 	if
+		Mode band Fraudscore_field /= 0 ->
+			Fraud_Score = readcolstringrow(S, R, Dbtype, Fraudscore_position);
+		true ->
+			Fraud_Score = ""
+	end,
+	
+	if
 		(Country_short == "-") or (Proxy_type == "-") ->
 			Is_proxy = 0;
 		true ->
@@ -321,6 +332,7 @@ readrecord(S, R, Dbtype, Mode) ->
 	last_seen = Last_seen,
 	threat = Threat,
 	provider = Provider,
+	fraud_score = Fraud_Score,
 	is_proxy = Is_proxy
 	}.
 
@@ -384,6 +396,7 @@ searchtree(S, Ipnum, Dbtype, Low, High, BaseAddr, Colsize, Iptype, Mode) ->
 			last_seen = X,
 			threat = X,
 			provider = X,
+			fraud_score = X,
 			is_proxy = -1
 			}
 	end.
@@ -435,7 +448,7 @@ search6(S, Ipnum, Dbtype, Low, High, Baseaddr, Indexbaseaddr, Colsize, Mode) ->
 	end.
 
 getall(Ip) ->
-	query(Ip, 16383).
+	query(Ip, 32767).
 
 getcountryshort(Ip) ->
 	Result = query(Ip, 1),
@@ -488,6 +501,10 @@ getthreat(Ip) ->
 getprovider(Ip) ->
 	Result = query(Ip, 8192),
 	Result#ip2proxyrecord.provider.
+
+getfraudscore(Ip) ->
+	Result = query(Ip, 16384),
+	Result#ip2proxyrecord.fraud_score.
 
 isproxy(Ip) ->
 	Result = query(Ip, 64),
@@ -563,6 +580,7 @@ query(Ip, Mode) ->
 													last_seen = Z,
 													threat = Z,
 													provider = Z,
+													fraud_score = Z,
 													is_proxy = -1
 													}
 											end
@@ -582,6 +600,7 @@ query(Ip, Mode) ->
 									last_seen = X,
 									threat = X,
 									provider = X,
+									fraud_score = X,
 									is_proxy = -1
 									}
 							end,
@@ -602,6 +621,7 @@ query(Ip, Mode) ->
 							last_seen = Y,
 							threat = Y,
 							provider = Y,
+							fraud_score = Y,
 							is_proxy = -1
 							}
 					end

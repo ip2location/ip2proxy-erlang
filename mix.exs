@@ -4,7 +4,7 @@ defmodule IP2ProxyErlang.MixProject do
   def project() do
     [
       app: :ip2proxy_erlang,
-      version: "3.3.3",
+      version: "3.4.0",
       elixir: "~> 1.0",
       build_embedded: Mix.env == :prod,
       start_permanent: Mix.env == :prod,
