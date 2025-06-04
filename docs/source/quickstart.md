@@ -28,7 +28,7 @@ printme(V) ->
 	case V of
 		{} ->
 			io:format("No results.~n", []);
-		{ip2proxyrecord, Country_short, Country_long, Region, City, Isp, Proxy_type, Domain, Usage_type, Asn, As, Last_seen, Threat, Provider, Is_proxy} ->
+		{ip2proxyrecord, Country_short, Country_long, Region, City, Isp, Proxy_type, Domain, Usage_type, Asn, As, Last_seen, Threat, Provider, Fraud_score Is_proxy} ->
 			io:format("Country_short: ~p~n", [Country_short]),
 			io:format("Country_long: ~p~n", [Country_long]),
 			io:format("Region: ~p~n", [Region]),
@@ -42,13 +42,14 @@ printme(V) ->
 			io:format("Last_seen: ~p~n", [Last_seen]),
 			io:format("Threat: ~p~n", [Threat]),
 			io:format("Provider: ~p~n", [Provider]),
+			io:format("Fraud_score: ~p~n", [Fraud_score]),
 			io:format("Is_proxy: ~p~n", [Is_proxy])
 	end,
 	io:format("===================================================================~n", []).
 
 testme() ->
 	X = "37.252.228.50",
-	case ip2proxy:open("./ip2proxy-testdata/IP2PROXY-IP-PROXYTYPE-COUNTRY-REGION-CITY-ISP-DOMAIN-USAGETYPE-ASN-LASTSEEN-THREAT-RESIDENTIAL-PROVIDER.BIN") of
+	case ip2proxy:open("./ip2proxy-testdata/IP2PROXY-IP-PROXYTYPE-COUNTRY-REGION-CITY-ISP-DOMAIN-USAGETYPE-ASN-LASTSEEN-THREAT-RESIDENTIAL-PROVIDER-FRAUDSCORE.BIN") of
 	0 ->
 		io:format("getpackageversion: ~p~n", [ip2proxy:getpackageversion()]),
 		io:format("getmoduleversion: ~p~n", [ip2proxy:getmoduleversion()]),
@@ -69,6 +70,7 @@ testme() ->
 		io:format("Last_seen: ~p~n", [ip2proxy:getlastseen(X)]),
 		io:format("Threat: ~p~n", [ip2proxy:getthreat(X)]),
 		io:format("Provider: ~p~n", [ip2proxy:getprovider(X)]),
+		io:format("Fraud_score: ~p~n", [ip2proxy:getfraudscore(X)]),
 		io:format("Is_proxy: ~p~n", [ip2proxy:isproxy(X)]);
 	_ ->
 		io:format("Error reading BIN file~n", [])

@@ -8,7 +8,7 @@ Load the IP2Proxy BIN database for lookup.
 ```
 
 ```{py:function} getpackageversion()
-Return the database's type, 1 to 10 respectively for PX1 to PX11. Please visit https://www.ip2location.com/databases/ip2proxy for details.
+Return the database's type, 1 to 12 respectively for PX1 to PX12. Please visit https://www.ip2location.com/databases/ip2proxy for details.
 
 :return: Returns the package version.
 :rtype: String
@@ -56,4 +56,5 @@ Retrieve geolocation information for an IP address.
 | Last_seen       |     Proxy last seen in days. |
 | Threat         |     Security threat reported. |
 | Provider       |     Name of VPN provider if available. |
+| Fraud_score       |     Potential risk score (0 - 99) associated with IP address. A higher IP2Proxy Fraud Score indicates a greater likelihood of fraudulent activity and a lower reputation. |
 ```

@@ -53,7 +53,7 @@ getpackageversion() ->
 	end.
 
 getmoduleversion() ->
-	"3.4.0".
+	"3.4.1".
 
 getdatabaseversion() ->
 	case ets:info(mymeta) of
